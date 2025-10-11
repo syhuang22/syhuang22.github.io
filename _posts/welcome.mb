@@ -1,0 +1,40 @@
+---
+layout: post
+title:  "Welcome to My Tech Blog 🚀"
+date:   2025-10-11 10:00:00 +0800
+categories: [learning, personal]
+---
+
+Hi there 👋  
+I’m **James Huang (黃少禹)** — a software engineer passionate about cloud infrastructure, AI, and deep learning.  
+
+This blog is where I’ll document my learning journey — from building distributed systems to exploring machine learning fundamentals and inference optimization.  
+
+---
+
+## 🌱 What You Can Expect Here
+
+- 🔧 **Tech Notes:** Things I’ve learned about AWS, Google Cloud, or backend architecture.  
+- 🧠 **AI & ML Deep Dives:** From mathematical foundations to JAX, attention mechanisms, and large-scale inference.  
+- 🚀 **Side Projects:** Fun experiments with new technologies — sometimes messy, always insightful.  
+- 💬 **Reflections:** Thoughts about growth as an engineer and career lessons along the way.  
+
+---
+
+## 🛠️ How This Blog Was Built
+
+This site is powered by **GitHub Pages + Jekyll**, written in Markdown, and published straight from my repository:  
+👉 [syhuang22.github.io](https://syhuang22.github.io)
+
+If you’re curious, you can find the source code [here](https://github.com/syhuang22/syhuang22.github.io).  
+
+---
+
+## ⚡ Final Thoughts
+
+> “The best way to learn is to build, reflect, and share.”
+
+Thanks for dropping by — I’ll keep this blog updated with what I learn every week.  
+Feel free to connect or leave a comment if something resonates!
+
+— *James Huang*
