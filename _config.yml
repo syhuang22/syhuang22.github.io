@@ -149,6 +149,10 @@ paginate: 10
 # The base URL of your site
 baseurl: ""
 
+kramdown:
+  math_engine: mathjax
+  syntax_highlighter: rouge
+
 # ------------ The following options are not recommended to be modified ------------------
 
 kramdown:
