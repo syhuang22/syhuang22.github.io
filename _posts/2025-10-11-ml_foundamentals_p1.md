@@ -255,7 +255,7 @@ print("Sum of probs:", np.sum(probs))  # should be ~1.0
 ```
 ## All Together 
 let’s tie everything together into a mini neural network forward pass using NumPy only
-## Full Forward Pass Example (ReLU + Softmax)
+### Full Forward Pass Example (ReLU + Softmax)
 This example shows how data flows through a small feed-forward neural network:
 
 1. Inputs →  
