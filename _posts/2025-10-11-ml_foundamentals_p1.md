@@ -78,7 +78,7 @@ You give a neuron some inputs — say pixel values or features. It can learn a *
 What if the data isn’t linearly separable?
 What if multiple patterns are needed to make a good decision?
 
-### 💡 The Intuition: What If We Used Multiple Neurons?
+### The Intuition: What If We Used Multiple Neurons?
 
 Instead of relying on a single neuron, what if we had **multiple neurons**, each learning a different pattern?
 
