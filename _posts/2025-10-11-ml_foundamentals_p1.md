@@ -23,7 +23,6 @@ window.MathJax = {
   src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
 </script>
 
-## Introduction
 In this post, we’ll peel back the curtain on the core building blocks of neural networks. 
 
 - **Neuron**: how a single neuron (or “node”) aggregates inputs and produces an output  
