@@ -329,7 +329,7 @@ $$
 This simplification is what makes training multi-class networks efficient.
 
 
-### Code Example: Single Neuron
+### Code Example:
 ```python
 import numpy as np
 
