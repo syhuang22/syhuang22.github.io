@@ -298,35 +298,133 @@ This describes how a change in the input \($ z_k $\) affects each output \($ p_j
 It shows that each output depends on all inputs — making the Jacobian dense and computationally expensive to calculate directly.
 
 
+### 🧩 Combined Derivative: Softmax + Cross-Entropy
 
+A powerful simplification arises when we use the **cross-entropy loss** together with a **softmax output layer**.  
+Because of the specific forms of both functions, their derivatives combine neatly into a simple and efficient expression.
 
+#### Setup
 
+- Softmax converts logits $$\mathbf{z} = [z_1, z_2, ..., z_K]$$ into probabilities:
+  $$
+  p_i = \frac{e^{z_i}}{\sum_k e^{z_k}}
+  $$
+- Cross-Entropy measures the distance between the predicted distribution $$\mathbf{p}$$ and the true one-hot label vector $$\mathbf{y}$$:
+  $$
+  \mathcal{L} = -\sum_i y_i \log(p_i)
+  $$
 
-### Combined Derivative: Softmax + Cross‑Entropy 
-A useful simplification arises when we use the cross‑entropy loss together with a softmax final layer. Because of the form of softmax and the loss, the derivatives combine cleanly. In fact: 
+For a **one-hot** vector $$\mathbf{y}$$, only the correct class has $$y_i = 1$$, and all others are $$0$$.  
+This means:
 $$
-\frac{\partial \mathcal{L}}{\partial z_j} = p_j - y_j
-$$ 
-This relationship holds directly, meaning we **don’t have to separately compute** the full Jacobian of softmax when paired with cross-entropy.
-
-
-Instead of computing:
-
-
-$$
-\frac{\partial \mathcal{L}}{\partial \mathbf{z}} = \mathbf{J}_{\text{softmax}}^\top \cdot \frac{\partial \mathcal{L}}{\partial \mathbf{p}}
+\mathcal{L} = -\log(p_{\text{true class}})
 $$
 
 
-it simplifies to:
+#### Derivative Simplification (Step by Step)
+
+We want the derivative of the loss with respect to each logit $$z_j$$:
+$$
+\frac{\partial \mathcal{L}}{\partial z_j}
+$$
+
+We use the **chain rule** since $$\mathcal{L}$$ depends on $$z_j$$ *through* the softmax outputs $$p_i$$:
+
+$$
+\frac{\partial \mathcal{L}}{\partial z_j}
+= \sum_i
+  \frac{\partial \mathcal{L}}{\partial p_i}
+  \cdot
+  \frac{\partial p_i}{\partial z_j}
+$$
+
+**Step 1: Derivative of Cross-Entropy w.r.t. Softmax output**
+
+From the loss:
+$$
+\mathcal{L} = -\sum_i y_i \log(p_i)
+$$
+we get:
+$$
+\frac{\partial \mathcal{L}}{\partial p_i} = -\frac{y_i}{p_i}
+$$
 
 
+**Step 2: Derivative of Softmax output w.r.t. logits**
+
+From the softmax definition:
+$$
+p_i = \frac{e^{z_i}}{\sum_k e^{z_k}}
+$$
+the derivative is:
+$$
+\frac{\partial p_i}{\partial z_j} = p_i(\delta_{ij} - p_j)
+$$
+where: $$\delta_{ij} = 1$$ if $$i = j$$, otherwise $$0$$.
+
+**Step 3: Combine the two using the chain rule**
+
+Substitute both results:
+$$
+\frac{\partial \mathcal{L}}{\partial z_j}
+= \sum_i \left(-\frac{y_i}{p_i}\right) \cdot p_i(\delta_{ij} - p_j)
+$$
+
+Simplify:
+$$
+\frac{\partial \mathcal{L}}{\partial z_j}
+= -\sum_i y_i(\delta_{ij} - p_j)
+$$
+
+Expand the sum:
+$$
+\frac{\partial \mathcal{L}}{\partial z_j}
+= -y_j + p_j \sum_i y_i
+$$
+
+Since for a **one-hot label** $$\sum_i y_i = 1$$, we get:
+$$
+\boxed{\frac{\partial \mathcal{L}}{\partial z_j} = p_j - y_j}
+$$
+
+or equivalently in vector form:
 $$
 \frac{\partial \mathcal{L}}{\partial \mathbf{z}} = \mathbf{p} - \mathbf{y}
 $$
 
+#### Interpretation
 
-This simplification is what makes training multi-class networks efficient.
+- For the **true class**:
+  $$
+  y_j = 1 \Rightarrow \frac{\partial \mathcal{L}}{\partial z_j} = p_j - 1 < 0
+  $$
+  → increase its logit (raise probability)
+
+- For **other classes**:
+  $$
+  y_j = 0 \Rightarrow \frac{\partial \mathcal{L}}{\partial z_j} = p_j > 0
+  $$
+  → decrease their logits (suppress probability)
+
+The **one-hot vector** ensures that:
+- Only one term in the loss remains active.  
+- The gradient naturally encodes “prediction minus truth.”  
+- The overall update cleanly shifts probability mass toward the correct class.
+
+---
+
+#### Why It Matters
+
+- **No need to compute** a large Jacobian.  
+- **Numerically stable** and efficient.  
+- **Conceptually clear** — the gradient is simply:
+  $$
+  \text{error signal} = \text{predicted probability} - \text{true (one-hot) label}
+  $$
+
+> This elegant result is why the **Softmax + Cross-Entropy** combination  
+> is the standard loss for multi-class classification.
+
 
 
 ### Code Example:
