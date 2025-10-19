@@ -255,7 +255,12 @@ When we compute the derivative of this loss with respect to the inputs (logits) 
 $$
 \frac{\partial \mathcal{L}}{\partial z_j} = p_j - y_j
 $$ 
-for each class index $j$. :contentReference[oaicite:1]{index=1}
+The softmax output is defined as
+$$
+p_j = \frac{e^{z_j}}{\sum_k e^{z_k}}
+$$
+for each class index \( $j$ \).
+
 
 
 ### Derivative of Softmax Activation 
