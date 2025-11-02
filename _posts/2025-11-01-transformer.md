@@ -89,28 +89,6 @@ All RNN-based models process tokens *in order*, one by one.
 
 These constraints made scaling to long sequences (like full sentences or documents) extremely difficult.
 
-
-### Enter Attention: The Key Idea
-
-The **attention mechanism** broke this bottleneck.  
-Instead of encoding everything into a single hidden vector,  
-it allows the model to **directly “look at” all past tokens** when processing the current one.
-
-#### Core Concept
-For a given query token, compute how much it should “attend to” each other token:
-
-$$
-\text{Attention}(Q, K, V) = \text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V
-$$
-
-- **Q (Query):** representation of the current token  
-- **K (Key):** representation of all tokens (used for matching)  
-- **V (Value):** information to be aggregated  
-- The dot product $$QK^\top$$ measures similarity → tells the model *where to focus*  
-
-This allows each token to access *context from anywhere in the sequence*,  
-not just nearby positions.
-
 ### The Transformer: “Attention Is All You Need”
 
 Vaswani et al. realized that **if attention can capture sequence dependencies**,  
