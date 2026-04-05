@@ -132,6 +132,241 @@ It is the shape of the result:
 This experiment made `jit` feel much less magical to me.
 It is not just a "make fast" button; it changes the execution model.
 
+## Why Can't We Just JIT Everything?
+
+After seeing a benchmark like the one above, it is very tempting to ask:
+why not just wrap every function in `jax.jit()` and call it a day?
+
+The short answer is that `jit` only works well when JAX can trace the function into a stable computation graph.
+That usually means:
+
+- array-oriented numerical work
+- stable shapes and dtypes
+- little or no Python-side branching based on runtime values
+- enough repeated calls to amortize compile cost
+
+When those assumptions break, `jit` can either fail outright or become slower than eager execution.
+
+## When `jit` Fails: Python Control Flow on Runtime Values
+
+One of the most common failures happens when Python control flow depends on the **value** of a traced input.
+
+```python
+import jax
+
+def f(x):
+    if x > 0:
+        return x
+    else:
+        return 2 * x
+
+jax.jit(f)(10)
+```
+
+This raises a `TracerBoolConversionError`.
+The reason is that inside `jit`, `x` is traced abstractly.
+JAX knows things like shape and dtype, but at trace time it does not have the concrete runtime value needed for a Python `if`.
+
+The same issue shows up with Python loops:
+
+```python
+def g(x, n):
+    i = 0
+    while i < n:
+        i += 1
+    return x + i
+
+jax.jit(g)(10, 20)
+```
+
+This also fails for the same reason:
+the Python `while` depends on the runtime value of `n`, but tracing happens before JAX knows that value concretely.
+
+So a good rule of thumb is:
+
+- Python `if`, `while`, and `for` are fine when their behavior depends on static Python values
+- they become problematic when they depend on traced JAX values
+
+## What `jit` Can See
+
+Inside `jit`, traced values can affect compilation through their **static structure**, not arbitrary runtime value.
+That usually means:
+
+- shape
+- dtype
+- pytree structure
+
+But not:
+
+- whether `x > 0`
+- whether `n < 20`
+- how many times a Python loop should run based on traced data
+
+This is one of the biggest mental shifts in JAX.
+We still write Python syntax, but the compiled program is not "executing Python normally."
+
+## Correct Pattern 1: Rewrite Value-Based Branching
+
+If possible, rewrite the function to avoid Python control flow on traced values.
+For elementwise cases, this can often be expressed directly with array operations.
+
+```python
+import jax
+import jax.numpy as jnp
+
+def f_rewritten(x):
+    return jnp.where(x > 0, x, 2 * x)
+
+print(jax.jit(f_rewritten)(10))
+print(jax.jit(f_rewritten)(-3))
+```
+
+This works because `jnp.where(...)` is part of the traced computation, instead of asking Python to choose a branch.
+
+For more structured branching, JAX also provides control-flow primitives such as `jax.lax.cond`.
+
+## Correct Pattern 2: JIT Only the Expensive Inner Part
+
+Sometimes the outer Python loop is driven by runtime logic that is awkward to rewrite, but the heavy numerical work inside the loop is still worth compiling.
+In that case, we can JIT only the hot inner function:
+
+```python
+import jax
+
+@jax.jit
+def loop_body(prev_i):
+    return prev_i + 1
+
+def g_inner_jitted(x, n):
+    i = 0
+    while i < n:
+        i = loop_body(i)
+    return x + i
+
+print(g_inner_jitted(10, 20))
+```
+
+This pattern is often more practical than trying to force the whole outer function into `jit`.
+It is a good reminder that JAX performance is not all-or-nothing.
+We can compile the expensive numerical kernel and leave the awkward Python control flow outside.
+
+## Correct Pattern 3: Mark Some Arguments as Static
+
+If a function really does need Python control flow based on an argument, and that argument only takes a small set of values, we can mark it as static.
+
+```python
+import jax
+
+def f(x):
+    if x > 0:
+        return x
+    else:
+        return 2 * x
+
+f_jit_static = jax.jit(f, static_argnums=0)
+print(f_jit_static(10))
+```
+
+We can also do the same thing by name:
+
+```python
+from functools import partial
+import jax
+
+@partial(jax.jit, static_argnames=["n"])
+def g_jit_decorated(x, n):
+    i = 0
+    while i < n:
+        i += 1
+    return x + i
+
+print(g_jit_decorated(10, 20))
+```
+
+This works, but it comes with an important tradeoff:
+JAX now treats that argument as part of the compilation key.
+If the static argument changes often, JAX may recompile repeatedly.
+
+So static arguments are a good idea only when:
+
+- the set of values is small
+- recompilation cost is acceptable
+- the branching really belongs in Python
+
+## JIT and Caching
+
+The first call to a jitted function pays the compile cost.
+Later calls can reuse the cached compiled program.
+That reuse is exactly why `jit` becomes worthwhile for repeated workloads.
+
+But caching only helps when the compiled function identity and relevant input signature stay stable.
+This is why these two patterns are dangerous:
+
+```python
+from functools import partial
+import jax
+
+def unjitted_loop_body(prev_i):
+    return prev_i + 1
+
+def bad_partial_loop(x, n):
+    i = 0
+    while i < n:
+        i = jax.jit(partial(unjitted_loop_body))(i)
+    return x + i
+
+def bad_lambda_loop(x, n):
+    i = 0
+    while i < n:
+        i = jax.jit(lambda x: unjitted_loop_body(x))(i)
+    return x + i
+```
+
+Each iteration creates a new function object, which can defeat caching and trigger repeated compilation.
+
+The safer version is:
+
+```python
+import jax
+
+def unjitted_loop_body(prev_i):
+    return prev_i + 1
+
+jitted_loop_body = jax.jit(unjitted_loop_body)
+
+def good_cached_loop(x, n):
+    i = 0
+    while i < n:
+        i = jitted_loop_body(i)
+    return x + i
+```
+
+This is a very practical rule:
+define jitted functions once, outside loops and temporary scopes, so JAX can reuse the cached compiled artifact.
+
+## So When Should We Use `jit`?
+
+After reading the docs and trying a few examples, my current rule of thumb is:
+
+Use `jit` when:
+
+- the function does meaningful numerical work
+- the same function will be called many times
+- input shapes are relatively stable
+- most of the work is array computation rather than Python logic
+
+Be careful with `jit` when:
+
+- the function is tiny and called only once
+- Python control flow depends on runtime tensor values
+- argument values change in a way that forces recompilation
+- the function is recreated repeatedly inside loops or closures
+
+Do not think of `jit` as a decorator to sprinkle everywhere.
+It is better to think of it as a compiler boundary.
+The real question is not "can I decorate this function?"
+The better question is "is this function a stable numerical kernel that is worth compiling?"
+
 # 4. `grad` as a Program Transformation
 
 `jax.grad` also becomes clearer when treated as a function transformation.
