@@ -559,6 +559,42 @@ The important point is not the exact numbers.
 It is that `grads` has the same nested structure as `params`.
 That makes parameter updates much easier, because JAX can apply transforms leaf-by-leaf while preserving the whole tree shape.
 
+An even more useful pattern is that `tree.map(...)` can align **multiple pytrees at the same time**.
+This is exactly what we want during parameter updates, because `params` and `grads` usually have the same tree structure.
+
+```python
+learning_rate = 0.1
+
+updated_params = jax.tree.map(
+    lambda p, g: p - learning_rate * g,
+    params,
+    grads,
+)
+
+print(updated_params)
+```
+
+### Result
+
+```text
+{
+  'layer1': {'b': Array([0.4], dtype=float32), 'w': Array([0.8, 1.6], dtype=float32)},
+  'layer2': {'b': Array([0.8], dtype=float32), 'w': Array([2.4], dtype=float32)}
+}
+```
+
+This is where pytrees really start to feel powerful to me.
+JAX walks both trees in lockstep, matches corresponding leaves, and applies the function leaf-by-leaf.
+
+So instead of manually writing:
+
+- update `layer1["w"]`
+- update `layer1["b"]`
+- update `layer2["w"]`
+- update `layer2["b"]`
+
+we just express the update rule once and let JAX apply it across the whole parameter tree.
+
 We can also map a function over every leaf without manually traversing the nested structure:
 
 ```python
