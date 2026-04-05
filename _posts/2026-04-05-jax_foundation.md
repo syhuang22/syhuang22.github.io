@@ -484,8 +484,96 @@ write a small function once, then transform it instead of rewriting it.
 At first, pytrees looked like a minor implementation detail to me.
 After reading more, I think they are one of the reasons JAX feels clean.
 
-A pytree is just a nested Python structure with arrays at the leaves.
-That means model parameters, gradients, optimizer state, and batches can all stay in natural containers such as dicts and tuples.
+A pytree is a nested Python structure built from containers like lists, tuples, and dicts, with values stored at the leaves.
+A single array is also a pytree, and in JAX an array counts as one leaf.
+
+This matters because JAX transformations understand pytrees directly.
+That means we can keep model parameters, gradients, optimizer state, or batches in natural nested containers instead of flattening everything by hand.
+
+Here is a very small example showing how JAX counts leaves:
+
+```python
+import jax
+import jax.numpy as jnp
+
+example_trees = [
+    [1, {"k1": 2, "k2": (3, 4)}, 5],
+    {"a": 2, "b": (2, 3)},
+    jnp.array([1, 2, 3]),
+]
+
+for pytree in example_trees:
+    leaves = jax.tree.leaves(pytree)
+    print(f"{repr(pytree):<35} -> {len(leaves)} leaves: {leaves}")
+```
+
+### Result
+
+```text
+[1, {'k1': 2, 'k2': (3, 4)}, 5] -> 5 leaves: [1, 2, 3, 4, 5]
+{'a': 2, 'b': (2, 3)}           -> 3 leaves: [2, 2, 3]
+Array([1, 2, 3], dtype=int32)   -> 1 leaves: [Array([1, 2, 3], dtype=int32)]
+```
+
+This example helped me see the rule more clearly:
+
+- lists, tuples, and dicts define the tree structure
+- the actual values at the bottom are the leaves
+- an entire JAX array is treated as one leaf, not one leaf per element
+
+The practical value of pytrees shows up most clearly with model parameters.
+For example, if parameters are stored as a nested dict, gradients returned by `jax.grad(...)` will usually have exactly the same structure:
+
+```python
+import jax
+import jax.numpy as jnp
+
+params = {
+    "layer1": {"w": jnp.array([1.0, 2.0]), "b": jnp.array([0.5])},
+    "layer2": {"w": jnp.array([3.0]), "b": jnp.array([1.0])},
+}
+
+def loss_fn(params):
+    total = (
+        jnp.sum(params["layer1"]["w"] ** 2)
+        + jnp.sum(params["layer1"]["b"] ** 2)
+        + jnp.sum(params["layer2"]["w"] ** 2)
+        + jnp.sum(params["layer2"]["b"] ** 2)
+    )
+    return total
+
+grads = jax.grad(loss_fn)(params)
+print(grads)
+```
+
+### Result
+
+```text
+{
+  'layer1': {'b': Array([1.], dtype=float32), 'w': Array([2., 4.], dtype=float32)},
+  'layer2': {'b': Array([2.], dtype=float32), 'w': Array([6.], dtype=float32)}
+}
+```
+
+The important point is not the exact numbers.
+It is that `grads` has the same nested structure as `params`.
+That makes parameter updates much easier, because JAX can apply transforms leaf-by-leaf while preserving the whole tree shape.
+
+We can also map a function over every leaf without manually traversing the nested structure:
+
+```python
+scaled_params = jax.tree.map(lambda x: x * 0.1, params)
+print(scaled_params["layer1"]["w"])
+```
+
+### Result
+
+```text
+[0.1 0.2]
+```
+
+So for me, the main use of pytrees is this:
+they let JAX work with real ML data structures in their natural nested form.
 
 ```python
 import jax
